@@ -27,10 +27,12 @@ require.config({
 
 require([
     'gmaps',
+    'history',
     'jquery',
     'bootstrapjs'
-], function (gmaps) {
+], function (gmaps, history) {
     "use strict";
     gmaps.initialize();
     gmaps.makeCurrentPositionMarker();
+    history.initialize(gmaps);
 });

@@ -20,13 +20,20 @@
 <body>
 <div class="container-fluid">
     <div class="row-fluid">
-        <div id="map-canvas" class="offset1 span10" style="min-height: 500px; border: solid 1px #333;"></div>
+        <div class="offset4 span4">
+            <button class="btn span5 btn-success">Save history</button>
+            <button class="btn span5 btn-danger">Clear storage</button>
+        </div>
+    </div>
+    <br>
+    <div class="row-fluid">
+        <div id="map-canvas" class="offset1 span10" style="height: 500px; border: solid 1px #333;"></div>
     </div>
     <br>
     <div class="row-fluid">
         <div class="offset2 span8 hidden-phone">
             <form class="form-inline">
-                <input type="text" class="span10" placeholder="Input address or geo coordinates (comma or semicolon separator)">
+                <input type="text" class="span10" placeholder="Input address or geo coordinates (comma separator) or empty search show all history">
                 <button class="btn search-btn" type="button">Search</button>
             </form>
         </div>
@@ -37,15 +44,15 @@
             </form>
         </div>
     </div>
-    <div class="row-fluid">
-        <div class="offset1 span10" style="height: 350px; overflow-y: auto;">
-            <table class="table table-hover">
+    <div class="row-fluid" id="search-result">
+        <div class="offset1 span10">
+            <table class="table table-hover" id="search-result-table">
                 <thead>
                 <tr>
-                    <th>#</th>
-                    <th>First Name</th>
-                    <th>Last Name</th>
-                    <th>Username</th>
+                    <th style="width: 20%;">Pos</th>
+                    <th style="width: 40%;">Address</th>
+                    <th style="width: 30%;">Location</th>
+                    <th style="width: 10%;">Distance</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -55,25 +62,8 @@
                     <td>Otto</td>
                     <td>@mdo</td>
                 </tr>
-                <tr>
-                    <td>2</td>
-                    <td>Jacob</td>
-                    <td>Thornton</td>
-                    <td>@fat</td>
-                </tr>
-                <tr>
-                    <td>3</td>
-                    <td colspan="2">Larry the Bird</td>
-                    <td>@twitter</td>
-                </tr>
                 </tbody>
             </table>
-        </div>
-    </div>
-    <div class="row-fluid">
-        <div class="span10" style="background: #7aba7b">Statistic:</div>
-        <div class="span2">
-            <button class="btn btn-danger">Clear cached data (<span id="row-numb">3 rows</span>)</button>
         </div>
     </div>
 </div>

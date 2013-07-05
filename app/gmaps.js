@@ -25,9 +25,7 @@ define([
             me.geocoder = new google.maps.Geocoder();
             google.maps.event.addListener(me.map, 'click', function (e) {
                 var latlng = e.latLng,
-                    mDistance = google.maps.geometry.spherical.computeDistanceBetween(me.curentLatLng, latlng),
-                    distance = Math.round(mDistance) / 1000,
-                    marker = me.makeMarker(latlng, 'Point (' + distance + ' Km)');
+                    marker = me.makeMarker(latlng, 'Selected position');
                 me.setMarker(marker);
                 me.storeMarker(marker);
             });
@@ -43,20 +41,14 @@ define([
                     title: title
                 }),
                 callback = function (data) {
-                    var title = this.title,
-                        marker = this,
-                        distance = title.substring(title.indexOf('(') + 1, title.indexOf(')')),
+                    var marker = this,
                         addresses = me.addresses,
                         pos = data.latLng,
                         infowindow;
-                    if (!distance) {
-                        distance = '0 Km';
-                    }
                     $.each(addresses, function (index, value) {
                         if (value.pos === pos) {
                             infowindow = new google.maps.InfoWindow({
-                                content: me.makeInfoFromAddress(value.address) +
-                                    'Distance from current position: ' + distance
+                                content: me.formatInfo(value.info)
                             });
                             infowindow.open(me.map, marker);
                         }
@@ -66,13 +58,36 @@ define([
             me.setAddress(latlng);
             return marker;
         },
+        showMarker: function (item) {
+            var me = this,
+                marker = new google.maps.Marker({
+                    position: item.pos,
+                    title: 'Selected position'
+                }),
+                callback = function (data) {
+                    var marker = this,
+                        infowindow = new google.maps.InfoWindow({
+                            content: me.formatInfo(item.info)
+                        });
+                    infowindow.open(me.map, marker);
+                };
+            google.maps.event.addListener(marker, 'click', callback);
+            me.setMarker(marker);
+            me.storeMarker(marker);
+        },
         setAddress: function (latlng) {
             var me = this,
+                maxHistoryLenght = 100,
                 result = {},
+                mDistance = google.maps.geometry.spherical.computeDistanceBetween(me.curentLatLng, latlng),
+                distance = Math.round(mDistance) / 1000,
                 callback = function (results, status) {
                     if (status === google.maps.GeocoderStatus.OK) {
                         result.pos = latlng;
-                        result.address = results;
+                        result.info = me.makeInfo(results, distance);
+                        if (me.addresses.length > maxHistoryLenght) {
+                            me.addresses.shift();
+                        }
                         me.addresses.push(result);
                     } else {
                         console.warn('Geocode was not successful for the following reason: ' + status);
@@ -119,23 +134,52 @@ define([
                 console.log("Geolocation is not supported by this browser.");
             }
         },
-        makeInfoFromAddress: function (address) {
-            var result = '';
+        makeInfo: function (address, distance) {
+            var result = {},
+                full = '';
+            result.distance = distance;
             $.each(address, function (addrIndex, addrValue) {
-                var flag = false;
+                var flag = false,
+                    value;
                 $.each(addrValue.types, function (index, value) {
                     if (value === 'street_address') {
-                        result += 'Address: ' + addrValue.formatted_address + '<br>';
+                        value = addrValue.formatted_address;
+                        result.address = value;
+                        full += value + ' ';
                     }
                     if (value === 'administrative_area_level_3') {
-                        result += 'Admin area: ' + addrValue.address_components[0].long_name + '<br>';
+                        value = addrValue.address_components[0].long_name;
+                        result.area = value;
+                        full += value + ' ';
                     }
                     if (value === 'locality') {
-                        result += 'Location: ' + addrValue.formatted_address + '<br>';
+                        value = addrValue.formatted_address;
+                        result.location = value;
+                        full += value + ' ';
                     }
                 });
             });
             return result;
+        },
+        formatInfo: function (info) {
+            var result = '';
+            if (info.address) {
+                result += 'Address: ' + info.address + '<br>';
+            }
+            if (info.area) {
+                result += 'Admin area: ' + info.area + '<br>';
+            }
+            if (info.location) {
+                result += 'Location: ' + info.location + '<br>';
+            }
+            if (info.distance) {
+                result += 'Distance from current position: ' + info.distance + ' km';
+            }
+            return result;
+        },
+        getAdresses : function () {
+            var me = this;
+            return me.addresses;
         }
     };
     return gmaps;
