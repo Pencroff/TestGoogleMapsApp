@@ -12,24 +12,17 @@ require.config({
     //urlArgs: 'cb=' + Math.random(),
     //urlArgs: 'ver=' + 3,
     shim: {
-        bootstrapjs: {
-            deps: [
-                'jquery'
-            ]
-        }
     },
     paths: {
         async: '/TestGoogleMapsApp/js/async',
-        jquery: '//ajax.googleapis.com/ajax/libs/jquery/2.0.2/jquery.min',
-        bootstrapjs : '/TestGoogleMapsApp/js/bootstrap.min'
+        jquery: '//ajax.googleapis.com/ajax/libs/jquery/2.0.2/jquery.min'
     }
 });
 
 require([
     'gmaps',
     'history',
-    'jquery',
-    'bootstrapjs'
+    'jquery'
 ], function (gmaps, history) {
     "use strict";
     gmaps.initialize();
