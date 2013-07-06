@@ -59,43 +59,45 @@ define([
                 me.addresses.shift();
             }
             me.addresses.push(item);
+            $(me).trigger('update-history');
         },
-        setAddress: function (latlng) {
+        setAddress: function (marker) {
             var me = this,
+                latlng = marker.getPosition(),
                 result = {pos: {}, info: {}},
                 addr,
                 mDistance = google.maps.geometry.spherical.computeDistanceBetween(me.curentLatLng, latlng),
                 distance = Math.round(mDistance) / 1000,
                 callback = function (results, status) {
+                    var dirRequest = {
+                            origin: me.curentLatLng,
+                            destination: latlng,
+                            travelMode: google.maps.DirectionsTravelMode.DRIVING
+                        },
+                        dirCallback = function (response, status) {
+                            if (status === google.maps.DirectionsStatus.OK) {
+                                //directionsDisplay.setDirections(response);
+                                result.info.route = response.routes[0].overview_path;
+                                result.info.drivingDistance = common.getDrivingDistance(response.routes[0]);
+                                me.storeAddress(result);
+                                me.drivingPath.setVisible(true);
+                                me.drivingPath.setPath(result.info.route);
+                            }
+                        };
                     if (status === google.maps.GeocoderStatus.OK) {
                         result.pos = latlng;
                         result.info = me.makeInfo(results, distance);
-                        me.storeAddress(result);
+                        if (!me.curentLatLng.equals(latlng)) {
+                            me.directionsService.route(dirRequest, dirCallback);
+                        }
                     } else {
                         console.warn('Geocode was not successful for the following reason: ' + status);
-                    }
-                },
-                dirRequest = {
-                    origin: me.curentLatLng,
-                    destination: latlng,
-                    travelMode: google.maps.DirectionsTravelMode.DRIVING
-                },
-                dirCallback = function (response, status) {
-                    if (status === google.maps.DirectionsStatus.OK) {
-                        //directionsDisplay.setDirections(response);
-                        result.info.route = response.routes[0].overview_path;
-                        result.info.drivingDistance = common.getDrivingDistance(response.routes[0]);
-                        me.drivingPath.setVisible(true);
-                        me.drivingPath.setPath(result.info.route);
                     }
                 };
             if (latlng) {
                 addr = common.getAddressByPos(me.addresses, latlng);
                 if (!addr) {
                     me.geocoder.geocode({'location': latlng}, callback);
-                    if (!me.curentLatLng.equals(latlng)) {
-                        me.directionsService.route(dirRequest, dirCallback);
-                    }
                 }
             }
         },
@@ -185,18 +187,14 @@ define([
                 callback = function (data) {
                     var marker = this,
                         clickPos = data.latLng,
-                        pos,
-                        infowindow;
-                    pos = me.getAddressByPos(clickPos);
-                    if (pos) {
-                        infowindow = new google.maps.InfoWindow({
-                            content: me.formatInfo(pos.info)
-                        });
-                        infowindow.open(me.map, marker);
+                        addr;
+                    addr = me.getAddressByPos(clickPos);
+                    if (addr) {
+                        me.showInfoWindow(addr, marker, me);
                     }
                 };
             google.maps.event.addListener(marker, 'click', callback);
-            me.setAddress(latlng);
+            me.setAddress(marker);
             return marker;
         },
         showMarker: function (item) {
@@ -206,14 +204,11 @@ define([
                     title: 'Selected position'
                 }),
                 callback = function (data) {
-                    var marker = this,
-                        infowindow = new google.maps.InfoWindow({
-                            content: me.formatInfo(item.info)
-                        });
-                    infowindow.open(me.map, marker);
+                    me.showInfoWindow(item, marker, me);
                 };
             google.maps.event.addListener(marker, 'click', callback);
             me.setMarker(marker);
+            me.showInfoWindow(item, marker, me);
             me.storeMarker(marker);
             if (item.info.route) {
                 me.drivingPath.setVisible(true);
@@ -266,6 +261,12 @@ define([
             } else {
                 console.log("Geolocation is not supported by this browser.");
             }
+        },
+        showInfoWindow: function (addr, marker, context) {
+            var infowindow = new google.maps.InfoWindow({
+                    content: context.formatInfo(addr.info)
+                });
+            infowindow.open(context.map, marker);
         },
         makeInfo: function (address, distance) {
             var result = {},

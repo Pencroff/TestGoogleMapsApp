@@ -43,6 +43,9 @@ define([
                 saveBtn.hide();
                 clearBtn.hide();
             }
+            $(me.gmaps).bind('update-history', function (event) {
+                me.gmaps.getAdressList(me, me.fillSearchResult);
+            });
         },
         search: function (event) {
             var me = event.data,
@@ -56,26 +59,22 @@ define([
         },
         fillSearchResult : function (list) {
             var me = this,
+                len = list.length,
                 tbl = me.resultTable,
                 tbody = tbl.find('tbody'),
-                tableStr = '';
+                tableStr = '',
+                item;
             me.removeAllRows(tbl);
             me.resultBlock.show();
             $.each(list, function (index, value) {
-                tableStr += me.itemToHtml(value);
+                tableStr = me.itemToHtml(value) + tableStr;
             });
+            if (len > 0) {
+                item = list[len - 1];
+                me.gmaps.showMarker.call(me.gmaps, item);
+            }
             tbody.html(tableStr);
             $('#search-result-table tbody tr').bind('click', me, me.rowClick);
-        },
-        saveHistory: function (event) {
-            var me = event.data;
-            me.gmaps.saveHistory();
-            $('#clear-cache').removeClass('disabled');
-        },
-        clearCache: function (event) {
-            var me = event.data;
-            me.gmaps.clearCache();
-            $('#clear-cache').addClass('disabled');
         },
         rowClick: function (event) {
             var me = event.data,
@@ -96,6 +95,16 @@ define([
                 tbody;
             $('#search-result-table tbody tr').unbind();
             tbl.find('tbody').empty();
+        },
+        saveHistory: function (event) {
+            var me = event.data;
+            me.gmaps.saveHistory();
+            $('#clear-cache').removeClass('disabled');
+        },
+        clearCache: function (event) {
+            var me = event.data;
+            me.gmaps.clearCache();
+            $('#clear-cache').addClass('disabled');
         },
         itemToHtml: function (item) {
             var pos = item.pos,
