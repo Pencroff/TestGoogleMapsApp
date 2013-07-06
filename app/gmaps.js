@@ -6,10 +6,12 @@
 /*global define:true, $:true, google:true*/
 define([
     'jquery',
+    'common',
     'async!http://maps.googleapis.com/maps/api/js?v=3.exp&libraries=geometry&sensor=false'
-], function ($) {
+], function ($, common) {
     'use strict';
     var gmaps = {
+        keyStorage: 'history-points-storage',
         map: null,
         geocoder: null,
         curentLatLng: null,
@@ -18,7 +20,7 @@ define([
         addresses: [],
         initialize: function () {
             var me = this,
-                mapOptions = { zoom: 12,
+                mapOptions = { zoom: 15,
                     center: new google.maps.LatLng(41.9, 12.5),
                     mapTypeId: google.maps.MapTypeId.ROADMAP };
             me.map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
@@ -29,6 +31,9 @@ define([
                 me.setMarker(marker);
                 me.storeMarker(marker);
             });
+            if (me.hasLocalStorage() && me.hasCache()) {
+                me.addresses = me.loadHistory();
+            }
         },
         makeLatLnd: function (latitude, longitude) {
             var latlng = new google.maps.LatLng(latitude, longitude);
@@ -42,17 +47,16 @@ define([
                 }),
                 callback = function (data) {
                     var marker = this,
-                        addresses = me.addresses,
-                        pos = data.latLng,
+                        clickPos = data.latLng,
+                        pos,
                         infowindow;
-                    $.each(addresses, function (index, value) {
-                        if (value.pos === pos) {
-                            infowindow = new google.maps.InfoWindow({
-                                content: me.formatInfo(value.info)
-                            });
-                            infowindow.open(me.map, marker);
-                        }
-                    });
+                    pos = me.getAddressByPos(clickPos);
+                    if (pos) {
+                        infowindow = new google.maps.InfoWindow({
+                            content: me.formatInfo(pos.info)
+                        });
+                        infowindow.open(me.map, marker);
+                    }
                 };
             google.maps.event.addListener(marker, 'click', callback);
             me.setAddress(latlng);
@@ -75,26 +79,99 @@ define([
             me.setMarker(marker);
             me.storeMarker(marker);
         },
-        setAddress: function (latlng) {
+        storeAddress: function (item) {
             var me = this,
                 maxHistoryLenght = 100,
+                addr = common.getAddressByItem(me.addresses, item);
+            if (addr) {
+                return;
+            }
+            if (me.addresses.length > maxHistoryLenght) {
+                me.addresses.shift();
+            }
+            me.addresses.push(item);
+        },
+        setAddress: function (latlng) {
+            var me = this,
                 result = {},
+                addr,
                 mDistance = google.maps.geometry.spherical.computeDistanceBetween(me.curentLatLng, latlng),
                 distance = Math.round(mDistance) / 1000,
                 callback = function (results, status) {
                     if (status === google.maps.GeocoderStatus.OK) {
                         result.pos = latlng;
                         result.info = me.makeInfo(results, distance);
-                        if (me.addresses.length > maxHistoryLenght) {
-                            me.addresses.shift();
-                        }
-                        me.addresses.push(result);
+                        me.storeAddress(result);
                     } else {
                         console.warn('Geocode was not successful for the following reason: ' + status);
                     }
                 };
             if (latlng) {
-                me.geocoder.geocode({'location': latlng}, callback);
+                addr = common.getAddressByPos(me.addresses, latlng);
+                if (!addr) {
+                    me.geocoder.geocode({'location': latlng}, callback);
+                }
+            }
+        },
+        getAddressFromGeocoder: function (query, context, callback) {
+            var me = this,
+                result = {},
+                resultArray = [],
+                mDistance,
+                distance,
+                callbackGeocoder = function (results, status) {
+                    if (status === google.maps.GeocoderStatus.OK) {
+                        result.pos = results[0].geometry.location;
+                        mDistance = google.maps.geometry.spherical.computeDistanceBetween(me.curentLatLng, result.pos);
+                        distance = Math.round(mDistance) / 1000;
+                        result.info = me.makeInfo(results, distance);
+                        me.storeAddress(result);
+                        resultArray.push(result);
+                        if (callback) {
+                            callback.call(context, resultArray);
+                        }
+                    } else {
+                        console.warn('Geocode was not successful for the following reason: ' + status);
+                    }
+                };
+            me.geocoder.geocode({'address': query}, callbackGeocoder);
+        },
+        getAddressByPos: function (pos) {
+            var me = this,
+                result;
+            if (pos) {
+                result = common.getAddressByPos(me.addresses, pos);
+            }
+            return result;
+        },
+        getAddressByLatLng: function (lat, lng) {
+            var me = this,
+                result;
+            if ($.isNumeric(lat) && $.isNumeric(lng)) {
+                result = common.getAddressByLatLng(me.addresses, lat, lng);
+            }
+            return result;
+        },
+        getAdressList : function (context, callback) {
+            var me = this;
+            if (callback) {
+                callback.call(context, me.addresses);
+            }
+        },
+        getAdressListByStr : function (query, context, callback) {
+            var me = this,
+                resultArray = [];
+            $.each(me.addresses, function (index, value) {
+                if (value.info.full.indexOf(query) !== -1) {
+                    resultArray.push(value);
+                }
+            });
+            if (resultArray.length === 0) {
+                me.getAddressFromGeocoder(query, context, callback);
+            } else {
+                if (callback) {
+                    callback.call(context, resultArray);
+                }
             }
         },
         setMarker: function (marker) {
@@ -137,7 +214,6 @@ define([
         makeInfo: function (address, distance) {
             var result = {},
                 full = '';
-            result.distance = distance;
             $.each(address, function (addrIndex, addrValue) {
                 var flag = false,
                     value;
@@ -159,6 +235,8 @@ define([
                     }
                 });
             });
+            result.distance = distance;
+            result.full = full;
             return result;
         },
         formatInfo: function (info) {
@@ -177,9 +255,44 @@ define([
             }
             return result;
         },
-        getAdresses : function () {
+        // local storage
+        hasLocalStorage: function () {
+            var me = this,
+                keyTst = 'testLocalStorage';
+            try {
+                localStorage.setItem(keyTst, keyTst);
+                localStorage.removeItem(keyTst);
+                return true;
+            } catch (e) {
+                return false;
+            }
+        },
+        hasCache: function () {
+            var me = this,
+                value = localStorage.getItem(me.keyStorage),
+                result = false;
+            if (value) {
+                result = true;
+            }
+            return result;
+        },
+        loadHistory: function () {
+            var me = this,
+                value = localStorage.getItem(me.keyStorage),
+                array = JSON.parse(value);
+            $.each(array, function (index, value) {
+                var posArray = $.map(value.pos, function (value, key) { return value; });
+                value.pos = me.makeLatLnd(posArray[0], posArray[1]);
+            });
+            return array;
+        },
+        saveHistory: function () {
             var me = this;
-            return me.addresses;
+            localStorage.setItem(me.keyStorage, JSON.stringify(me.addresses));
+        },
+        clearCache: function () {
+            var me = this;
+            localStorage.removeItem(me.keyStorage);
         }
     };
     return gmaps;

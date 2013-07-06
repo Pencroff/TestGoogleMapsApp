@@ -21,8 +21,8 @@
 <div class="container-fluid">
     <div class="row-fluid">
         <div class="offset4 span4">
-            <button class="btn span5 btn-success">Save history</button>
-            <button class="btn span5 btn-danger">Clear storage</button>
+            <button id="save-history" class="btn span5 btn-success">Save history</button>
+            <button id="clear-cache" class="btn span5 btn-danger">Clear storage</button>
         </div>
     </div>
     <br>
@@ -33,14 +33,14 @@
     <div class="row-fluid">
         <div class="offset2 span8 hidden-phone">
             <form class="form-inline">
-                <input type="text" class="span10" placeholder="Input address or geo coordinates (comma separator) or empty search show all history">
-                <button class="btn search-btn" type="button">Search</button>
+                <input id="notPhoneInput" type="text" class="span10" placeholder="Input address or empty search show all history">
+                <button class="btn search-btn" type="submit">Search</button>
             </form>
         </div>
         <div class="offset2 span8 visible-phone">
             <form class="form-inline">
-                <input type="text" class="span10" placeholder="Input address or geo coordinates (comma or semicolon separator)">
-                <button class="btn span2 hidden-desktop search-btn" type="button">Search</button>
+                <input id="phoneInput" type="text" class="span10" placeholder="Input address or empty search show all history">
+                <button class="btn span2 search-btn" type="submit">Search</button>
             </form>
         </div>
     </div>

@@ -6,37 +6,76 @@
 
 /*global define:true, $:true, google:true*/
 define([
-    'jquery'
-], function ($) {
+    'jquery',
+    'common'
+], function ($, common) {
     'use strict';
     var history = {
         gmaps: null,
         resultBlock: null,
         resultTable: null,
+        inputDesktop: null,
+        inputPhone: null,
         initialize: function (gmaps) {
             var me = this,
                 resultBlock = $('#search-result'),
                 resultTable = $('#search-result-table'),
-                searchBtn = $('.search-btn');
+                saveBtn = $('#save-history'),
+                clearBtn = $('#clear-cache'),
+                desktopInput = $('#notPhoneInput'),
+                phoneInput = $('#phoneInput');
             me.gmaps = gmaps;
             me.resultBlock = resultBlock;
             me.resultTable = resultTable;
-            searchBtn.click(me, me.search);
+            me.inputDesktop = desktopInput;
+            me.inputPhone = phoneInput;
+            $('form').submit(me, me.search);
+            saveBtn.click(me, me.saveHistory);
+            clearBtn.click(me, me.clearCache);
+            desktopInput.change(me, me.copyDataBetweenInputs);
+            phoneInput.change(me, me.copyDataBetweenInputs);
             resultBlock.hide();
+            if (me.gmaps.hasLocalStorage()) {
+                if (!me.gmaps.hasCache()) {
+                    clearBtn.addClass('disabled');
+                }
+            } else {
+                saveBtn.hide();
+                clearBtn.hide();
+            }
         },
         search: function (event) {
             var me = event.data,
+                fieldValue = $('#notPhoneInput').val();
+            event.preventDefault();
+            if (!fieldValue) {
+                me.gmaps.getAdressList(me, me.fillSearchResult);
+            } else {
+                me.gmaps.getAdressListByStr(fieldValue, me, me.fillSearchResult);
+            }
+        },
+        fillSearchResult : function (list) {
+            var me = this,
                 tbl = me.resultTable,
-                tableStr = '',
                 tbody = tbl.find('tbody'),
-                addrs = me.gmaps.getAdresses();
+                tableStr = '';
             me.removeAllRows(tbl);
             me.resultBlock.show();
-            $.each(addrs, function (index, value) {
+            $.each(list, function (index, value) {
                 tableStr += me.itemToHtml(value);
             });
             tbody.html(tableStr);
             $('#search-result-table tbody tr').bind('click', me, me.rowClick);
+        },
+        saveHistory: function (event) {
+            var me = event.data;
+            me.gmaps.saveHistory();
+            $('#clear-cache').removeClass('disabled');
+        },
+        clearCache: function (event) {
+            var me = event.data;
+            me.gmaps.clearCache();
+            $('#clear-cache').addClass('disabled');
         },
         rowClick: function (event) {
             var me = event.data,
@@ -45,12 +84,11 @@ define([
                 lat = parseFloat(array[0]),
                 lng = parseFloat(array[1]),
                 gmaps = me.gmaps,
-                addresses = gmaps.getAdresses();
-            $.each(addresses, function (index, value) {
-                if (value.pos.lat() === lat && value.pos.lng() === lng) {
-                    gmaps.showMarker.call(gmaps, value);
-                }
-            });
+                addr;
+            addr = gmaps.getAddressByLatLng(lat, lng);
+            if (addr) {
+                gmaps.showMarker.call(gmaps, addr);
+            }
         },
         removeAllRows: function () {
             var me = this,
@@ -64,15 +102,9 @@ define([
                 lat = pos.lat(),
                 lng = pos.lng(),
                 result = '<tr data-pos="' + lat + ',' + lng + '">',
-                roundValue = function (val) {
-                    var signRounding = 10000,
-                        newVal = val * signRounding;
-                    newVal = Math.round(newVal);
-                    return newVal / signRounding;
-                },
                 info = item.info;
             if (pos) {
-                result += '<td>(' + roundValue(lat) + ', ' + roundValue(lng) + ')</td>';
+                result += '<td>(' + lat.toFixed(5) + ', ' + lng.toFixed(5) + ')</td>';
             } else {
                 result += '<td></td>';
             }
@@ -93,6 +125,16 @@ define([
             }
             result += '</tr>';
             return result;
+        },
+        copyDataBetweenInputs: function (event) {
+            var me = event.data,
+                id = event.currentTarget.id,
+                value = event.currentTarget.value;
+            if (id === 'notPhoneInput') {
+                me.inputPhone.val(value);
+            } else {
+                me.inputDesktop.val(value);
+            }
         }
     };
     return history;
