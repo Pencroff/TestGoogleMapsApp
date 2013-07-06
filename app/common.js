@@ -52,8 +52,12 @@ define([
             });
             return result;
         },
-        isCoordinates: function (str) {
-
+        getDrivingDistance: function (route) {
+            var result = 0;
+            $.each(route.legs, function (index, value) {
+                result += value.distance.value;
+            });
+            return Math.round(result) / 1000;
         }
     };
     return common;

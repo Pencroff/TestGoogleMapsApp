@@ -14,6 +14,8 @@ define([
         keyStorage: 'history-points-storage',
         map: null,
         geocoder: null,
+        drivingPath: null,
+        directionsService: null,
         curentLatLng: null,
         currentMarker: null,
         selectedMarker: null,
@@ -25,6 +27,13 @@ define([
                     mapTypeId: google.maps.MapTypeId.ROADMAP };
             me.map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
             me.geocoder = new google.maps.Geocoder();
+            me.drivingPath = new google.maps.Polyline({
+                strokeColor: '#2F96B4',
+                strokeOpacity: 0.8,
+                strokeWeight: 4
+            });
+            me.directionsService = new google.maps.DirectionsService();
+            me.drivingPath.setMap(me.map);
             google.maps.event.addListener(me.map, 'click', function (e) {
                 var latlng = e.latLng,
                     marker = me.makeMarker(latlng, 'Selected position');
@@ -38,46 +47,6 @@ define([
         makeLatLnd: function (latitude, longitude) {
             var latlng = new google.maps.LatLng(latitude, longitude);
             return latlng;
-        },
-        makeMarker: function (latlng, title) {
-            var me = this,
-                marker = new google.maps.Marker({
-                    position: latlng,
-                    title: title
-                }),
-                callback = function (data) {
-                    var marker = this,
-                        clickPos = data.latLng,
-                        pos,
-                        infowindow;
-                    pos = me.getAddressByPos(clickPos);
-                    if (pos) {
-                        infowindow = new google.maps.InfoWindow({
-                            content: me.formatInfo(pos.info)
-                        });
-                        infowindow.open(me.map, marker);
-                    }
-                };
-            google.maps.event.addListener(marker, 'click', callback);
-            me.setAddress(latlng);
-            return marker;
-        },
-        showMarker: function (item) {
-            var me = this,
-                marker = new google.maps.Marker({
-                    position: item.pos,
-                    title: 'Selected position'
-                }),
-                callback = function (data) {
-                    var marker = this,
-                        infowindow = new google.maps.InfoWindow({
-                            content: me.formatInfo(item.info)
-                        });
-                    infowindow.open(me.map, marker);
-                };
-            google.maps.event.addListener(marker, 'click', callback);
-            me.setMarker(marker);
-            me.storeMarker(marker);
         },
         storeAddress: function (item) {
             var me = this,
@@ -93,7 +62,7 @@ define([
         },
         setAddress: function (latlng) {
             var me = this,
-                result = {},
+                result = {pos: {}, info: {}},
                 addr,
                 mDistance = google.maps.geometry.spherical.computeDistanceBetween(me.curentLatLng, latlng),
                 distance = Math.round(mDistance) / 1000,
@@ -105,21 +74,55 @@ define([
                     } else {
                         console.warn('Geocode was not successful for the following reason: ' + status);
                     }
+                },
+                dirRequest = {
+                    origin: me.curentLatLng,
+                    destination: latlng,
+                    travelMode: google.maps.DirectionsTravelMode.DRIVING
+                },
+                dirCallback = function (response, status) {
+                    if (status === google.maps.DirectionsStatus.OK) {
+                        //directionsDisplay.setDirections(response);
+                        result.info.route = response.routes[0].overview_path;
+                        result.info.drivingDistance = common.getDrivingDistance(response.routes[0]);
+                        me.drivingPath.setVisible(true);
+                        me.drivingPath.setPath(result.info.route);
+                    }
                 };
             if (latlng) {
                 addr = common.getAddressByPos(me.addresses, latlng);
                 if (!addr) {
                     me.geocoder.geocode({'location': latlng}, callback);
+                    if (!me.curentLatLng.equals(latlng)) {
+                        me.directionsService.route(dirRequest, dirCallback);
+                    }
                 }
             }
         },
         getAddressFromGeocoder: function (query, context, callback) {
             var me = this,
-                result = {},
+                result = {pos: {}, info: {}},
                 resultArray = [],
                 mDistance,
                 distance,
                 callbackGeocoder = function (results, status) {
+                    var dirRequest = {
+                            origin: me.curentLatLng,
+                            destination: null,
+                            travelMode: google.maps.DirectionsTravelMode.DRIVING
+                        },
+                        dirCallback = function (response, status) {
+                            if (status === google.maps.DirectionsStatus.OK) {
+                                //directionsDisplay.setDirections(response);
+                                result.info.route = response.routes[0].overview_path;
+                                result.info.drivingDistance = common.getDrivingDistance(response.routes[0]);
+                                me.drivingPath.setVisible(true);
+                                me.drivingPath.setPath(result.info.route);
+                                if (callback) {
+                                    callback.call(context, resultArray);
+                                }
+                            }
+                        };
                     if (status === google.maps.GeocoderStatus.OK) {
                         result.pos = results[0].geometry.location;
                         mDistance = google.maps.geometry.spherical.computeDistanceBetween(me.curentLatLng, result.pos);
@@ -127,9 +130,8 @@ define([
                         result.info = me.makeInfo(results, distance);
                         me.storeAddress(result);
                         resultArray.push(result);
-                        if (callback) {
-                            callback.call(context, resultArray);
-                        }
+                        dirRequest.destination = result.pos;
+                        me.directionsService.route(dirRequest, dirCallback);
                     } else {
                         console.warn('Geocode was not successful for the following reason: ' + status);
                     }
@@ -174,6 +176,52 @@ define([
                 }
             }
         },
+        makeMarker: function (latlng, title) {
+            var me = this,
+                marker = new google.maps.Marker({
+                    position: latlng,
+                    title: title
+                }),
+                callback = function (data) {
+                    var marker = this,
+                        clickPos = data.latLng,
+                        pos,
+                        infowindow;
+                    pos = me.getAddressByPos(clickPos);
+                    if (pos) {
+                        infowindow = new google.maps.InfoWindow({
+                            content: me.formatInfo(pos.info)
+                        });
+                        infowindow.open(me.map, marker);
+                    }
+                };
+            google.maps.event.addListener(marker, 'click', callback);
+            me.setAddress(latlng);
+            return marker;
+        },
+        showMarker: function (item) {
+            var me = this,
+                marker = new google.maps.Marker({
+                    position: item.pos,
+                    title: 'Selected position'
+                }),
+                callback = function (data) {
+                    var marker = this,
+                        infowindow = new google.maps.InfoWindow({
+                            content: me.formatInfo(item.info)
+                        });
+                    infowindow.open(me.map, marker);
+                };
+            google.maps.event.addListener(marker, 'click', callback);
+            me.setMarker(marker);
+            me.storeMarker(marker);
+            if (item.info.route) {
+                me.drivingPath.setVisible(true);
+                me.drivingPath.setPath(item.info.route);
+            } else {
+                me.drivingPath.setVisible(false);
+            }
+        },
         setMarker: function (marker) {
             var me = this;
             if (marker) {
@@ -189,6 +237,14 @@ define([
                 google.maps.event.clearInstanceListeners(oldMarker);
             }
             me.selectedMarker = marker;
+            me.fitMap();
+        },
+        fitMap: function () {
+            var me = this,
+                bounds = new google.maps.LatLngBounds();
+            bounds.extend(me.curentLatLng);
+            bounds.extend(me.selectedMarker.getPosition());
+            me.map.fitBounds(bounds);
         },
         makeCurrentPositionMarker: function () {
             var me = this,
@@ -251,7 +307,10 @@ define([
                 result += 'Location: ' + info.location + '<br>';
             }
             if (info.distance) {
-                result += 'Distance from current position: ' + info.distance + ' km';
+                result += 'Distance from current position: ' + info.distance + ' km' + '<br>';
+            }
+            if (info.drivingDistance) {
+                result += 'Distance by car: ' + info.drivingDistance + ' km';
             }
             return result;
         },
@@ -279,10 +338,18 @@ define([
         loadHistory: function () {
             var me = this,
                 value = localStorage.getItem(me.keyStorage),
-                array = JSON.parse(value);
+                array = JSON.parse(value),
+                convertToLatLng = function (item) {
+                    var posArray = $.map(item, function (value, key) { return value; });
+                    return me.makeLatLnd(posArray[0], posArray[1]);
+                };
             $.each(array, function (index, value) {
-                var posArray = $.map(value.pos, function (value, key) { return value; });
-                value.pos = me.makeLatLnd(posArray[0], posArray[1]);
+                value.pos = convertToLatLng(value.pos);
+                if (value.info.route) {
+                    value.info.route = $.map(value.info.route, function (value, index) {
+                        return convertToLatLng(value);
+                    });
+                }
             });
             return array;
         },
