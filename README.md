@@ -1,4 +1,4 @@
 TestGoogleMapsApp
 =================
 
-Exanple using Google Maps Api
+Example using Google Maps Api

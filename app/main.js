@@ -14,7 +14,7 @@ require.config({
     shim: {
     },
     paths: {
-        async: '/TestGoogleMapsApp/js/async',
+        async: '/js/async',
         jquery: '//ajax.googleapis.com/ajax/libs/jquery/2.0.2/jquery.min'
     }
 });
