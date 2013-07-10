@@ -166,7 +166,7 @@ define([
             var me = this,
                 resultArray = [];
             $.each(me.addresses, function (index, value) {
-                if (value.info.full.indexOf(query) !== -1) {
+                if (value.info.full.indexOf(query.toLowerCase()) !== -1) {
                     resultArray.push(value);
                 }
             });
@@ -293,7 +293,7 @@ define([
                 });
             });
             result.distance = distance;
-            result.full = full;
+            result.full = full.toLowerCase();
             return result;
         },
         formatInfo: function (info) {
